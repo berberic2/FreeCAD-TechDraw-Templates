@@ -1,0 +1,134 @@
+#!/usr/bin/python3
+
+import sys
+from xml.dom.minidom import parseString
+
+DIN_papers = {
+    'A4': (210, 297, 4, 6),
+    'A3': (297, 420, 6, 8),
+    'A2': (420,594, 8, 12),
+    'A1': (594, 841, 12, 16),
+    'A0': (841, 1189, 16, 24) }
+
+landscape = True
+paper = "A3"
+tiles = (6,4)
+
+if len(sys.argv) != 3:
+    print(sys.argv)
+    exit()
+
+paper = sys.argv[1]
+landscape = (sys.argv[2] == "landscape")
+
+
+if landscape:
+    paper_height,paper_width,tiles_height,tiles_width = DIN_papers[paper]
+else:
+    paper_width,paper_height,tiles_width,tiles_height = DIN_papers[paper]
+
+
+#
+print(f'''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+  width="{paper_width}mm"
+  height="{paper_height}mm"
+  viewBox="0 0 {paper_width} {paper_height}"
+  id="template"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+  xmlns:freecad="https://www.freecad.org/wiki/index.php?title=Svg_Namespace">
+
+  <sodipodi:namedview
+     id="namedview3"
+     pagecolor="#ffffff" />
+''')
+  
+# frame
+print('  <g id="frame"')
+print('     style="fill:none;stroke:#000000;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1">')
+print(f'    <rect style="stroke-width:0.7" width="{paper_width-30}" height="{paper_height-20}" x="20" y="10" />')
+print(f'    <rect width="{paper_width-20}" height="{paper_height-10}" x="15" y="5" />')
+
+ty1 = 5
+ty2 = paper_height-10
+for x in range(1, tiles_width):
+    tx = (paper_width-30)/tiles_width*x+20
+    print(f'    <path d="m {tx:.2f},{ty1:.2f} v 5" />')
+    print(f'    <path d="m {tx:.2f},{ty2:.2f} v 5" />')
+
+tx1 = 15
+tx2 = paper_width-10
+for y in range(1, tiles_height):
+    ty = (paper_height-20)/tiles_height*y+10
+    print(f'    <path d="m {tx1:.2f},{ty:.2f} h 5" />')
+    print(f'    <path d="m {tx2:.2f},{ty:.2f} h 5" />')
+
+print('  </g>')
+
+# coords
+print('  <g id="coords"')
+print('     style="font-size:3.52778px;font-family:Open Sans;font-weight:bold;text-anchor:middle">')
+
+ty1 = 5+4
+ty2 = paper_height-10+4
+for x in range(1, tiles_width+1):
+    tx = (paper_width-30)/tiles_width*(x-0.5)+20
+    print(f'    <text x="{tx:.2f}" y="{ty1:.2f}">{x}</text>')
+    print(f'    <text x="{tx:.2f}" y="{ty2:.2f}">{x}</text>')
+
+tx1 = 15+2.5
+tx2 = paper_width-10+2.5
+for y in range(1, tiles_height+1):
+    ty = (paper_height-20)/tiles_height*(y-0.5)+10
+    print(f'    <text x="{tx1:.2f}" y="{ty:.2f}">{chr(y+ord("@"))}</text>')
+    print(f'    <text x="{tx2:.2f}" y="{ty:.2f}">{chr(y+ord("@"))}</text>')
+
+print('  </g>')
+
+# fields
+svg = open("field.svg").read()
+dom = parseString(svg)
+elements = dom.getElementsByTagName("svg")[0].childNodes
+
+fx = paper_width-10
+fy = paper_height-10
+print(f'  <g id="fieldframes" transform="translate({fx}, {fy})">')
+
+# path
+for e in elements:
+    if e.nodeName == "path" or e.nodeName == "rect":
+        print("   ", e.toxml())
+# text
+for e in elements:
+    if e.nodeName == "text" and not e.hasAttribute("freecad:editable"):
+        if e.hasAttribute("xml:space"):
+            e.removeAttribute("xml:space")
+        t = e.getElementsByTagName("tspan")[0]
+        if t.childNodes and t.childNodes[0].data == "PPP":
+            t.childNodes[0].data = paper
+        print("   ", e.toxml())
+# projection
+for e in elements:
+    if e.nodeName == "g":
+        print("   ", e.toprettyxml(indent="  ").replace("\n", "\n    "))
+print('  </g>')
+
+# editable text
+print('  <g id="editables">')
+for e in elements:
+    if e.nodeName == "text" and e.hasAttribute("freecad:editable"):
+        e.setAttribute("x", str(float(e.getAttribute("x"))+fx))
+        e.setAttribute("y", str(float(e.getAttribute("y"))+fy))
+        if e.hasAttribute("xml:space"):
+            e.removeAttribute("xml:space")
+        t = e.getElementsByTagName("tspan")[0]
+        t.setAttribute("x", str(float(t.getAttribute("x"))+fx))
+        t.setAttribute("y", str(float(t.getAttribute("y"))+fy))
+        if t.childNodes[0].data == "XXX":
+            t.childNodes[0].data = ""
+        print("   ", e.toxml())
+
+print('  </g>')
+print('</svg>')
